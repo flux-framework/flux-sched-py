@@ -4,7 +4,7 @@
 
 ![PyPI - Version](https://img.shields.io/pypi/v/flux-sched)
 
-![img/flux-sched-py.png](img/flux-sched-py.png)
+![img/flux-sched-py-white-small.png](img/flux-sched-py-white-small.png)
 
 Python bindings for the **Flux Framework** scheduler (`flux-sched` or `fluxion`). These bindings provide a high-performance interface to Flux's graph-based resource model, allowing users to simulate scheduling decisions offline or interact with a live Flux instance.
 
@@ -187,8 +187,8 @@ try:
 Check the status of an allocated job.
 
 ```python
-mode, is_reserved, at, ov = cli.info(jobid)    
-print(f"Job {jobid} is currently: {mode}") 
+mode, is_reserved, at, ov = cli.info(jobid)
+print(f"Job {jobid} is currently: {mode}")
 ```
 
 ### 4. Cancellation
@@ -197,7 +197,7 @@ Free resources associated with a job ID, making them available for new matches.
 
 ```python
 cli.cancel(jobid)
-print(f"Job {jobid} canceled. Resources released.")    
+print(f"Job {jobid} canceled. Resources released.")
 info = cli.info(jobid)
 print(info)
 ```
@@ -209,8 +209,8 @@ Release a *subset* of resources from an active allocation (e.g., for dynamic wor
 ```python
 # 'R_subset' is a string (R-spec or RV1) defining the specific resources to drop.
 # In this example, we assume we have an R string representing specific cores/nodes.
-R_subset = '{"rank": 0, "children": ...}' 
-is_fully_removed = cli.partial_cancel(jobid, R_subset)    
+R_subset = '{"rank": 0, "children": ...}'
+is_fully_removed = cli.partial_cancel(jobid, R_subset)
 if is_fully_removed:
     print(f"Job {jobid} is now empty and fully removed.")
 else:
