@@ -1,0 +1,19 @@
+[workspace]
+name = "flux-sched-py"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+jsonschema = "*"
+pip = "*"
+
+[pypi-dependencies]
+ipython = "*"
+pre-commit = "*"
+pyflakes = "*"
+black = "*"
+isort = "*"
+cython = "*"
+pytest = "*"
+build = "*"
+sphinx = "*"

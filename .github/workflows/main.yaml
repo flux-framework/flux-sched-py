@@ -1,0 +1,131 @@
+name: flux-sched-py
+on:
+  pull_request: {}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Pypi version'
+      release_version:
+        description: 'Version of flux to build'
+        default: "0.48.0"
+      rc:
+        description: 'Release candidate to build (for wheel)'
+        default: "0"
+      branch:
+        description: 'Branch to build from'
+        default: "master"
+      repo:
+        description: 'Repository to build from'
+        default: "https://github.com/flux-framework/flux-sched"
+
+jobs:
+  spelling:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check Spelling
+      uses: crate-ci/typos@v1.39.0
+
+  python-format:
+    name: formatting
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: 3.8
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+    - name: install linting and formatting deps
+      run: pip install -r ./.github/scripts/requirements-dev.txt
+    - name: format and linting checks
+      run: |
+        apt-get update && apt-get install -y python3-pip
+        python3 -m pip install pre-commit
+        pre-commit run --all-files --show-diff-on-failure
+
+  build:
+    name: python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+
+    - name: environment
+      env:
+        PYTHON_VERSION: ${{ matrix.python }}
+        FLUX_SCHED_URL: ${{ inputs.repo }}
+        FLUX_SCHED_BRANCH: ${{ inputs.branch }}
+        FLUX_SCHED_VERSION: ${{ inputs.version }}
+      run: |
+         echo "export FLUX_SCHED_URL=${FLUX_SCHED_URL}" >> .env
+         echo "export FLUX_SCHED_BRANCH=${FLUX_SCHED_BRANCH}" >> .env
+         echo "export FLUX_SCHED_VERSION=${FLUX_SCHED_VERSION}" >> .env
+         echo "export PYTHON_VERSION=${PYTHON_VERSION}" >> .env
+
+    # Let's run the entire thing in the devcontainer to make life easy. Or terrible.
+    - uses: devcontainers/ci@v0.3
+      with:
+        runCmd: |
+          set -e
+
+          # Install pixi for more fine-grained control of Python
+          curl -fsSL https://pixi.sh/install.sh | bash
+          export PIXI_HOME=$(pwd)
+          export PATH=/home/vscode/.pixi/bin:$PATH
+
+          # Devcontainer does not / (cannot?) interact with gh action environment
+          . .env
+          pixi add python=${PYTHON_VERSION}.*
+          # pixi add --pypi IPython pre-commit pyflakes black isort pytest Cython build
+          pixi run bash .github/scripts/run-tests.sh ${FLUX_SCHED_BRANCH} ${FLUX_SCHED_URL} ${FLUX_SCHED_VERSION}
+
+    - name: Upload distributions
+      uses: actions/upload-artifact@v4
+      with:
+        # The artifact name must be unique for each job in the matrix
+        name: dist-${{ matrix.python }}-${{ matrix.os }}
+        path: ./dist
+
+  upload:
+    runs-on: ubuntu-latest
+    # This job now needs the entire build matrix to complete successfully
+    needs: [build]
+    steps:
+    - name: Download Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        # Download all artifacts created by the build jobs
+        path: artifacts
+
+    - name: Show and Organize Files
+      run: |
+        ls -R artifacts
+        mkdir -p ./dist
+        # This command finds all wheel and tar.gz files in all subdirectories
+        # and moves them into a single ./dist directory for upload.
+        find artifacts -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec mv {} ./dist/ \;
+        echo
+        echo "Files to distribute:"
+        ls ./dist
+
+    - name: Build and publish
+      # Ensure this only runs on pushes to a main branch, not PRs
+      if: (github.event_name != 'pull_request')
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USER }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASS }}
+      run: |
+        apt-get update && apt-get install -y python3-pip
+        python3 -m pip install --upgrade twine
+        # TODO: we can eventually support wheels.
+        twine upload --skip-existing dist/*.tar.gz
