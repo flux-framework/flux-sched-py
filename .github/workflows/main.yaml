@@ -86,7 +86,6 @@ jobs:
           # Devcontainer does not / (cannot?) interact with gh action environment
           . .env
           pixi add python=${PYTHON_VERSION}.*
-          # pixi add --pypi IPython pre-commit pyflakes black isort pytest Cython build
           pixi run bash .github/scripts/run-tests.sh ${FLUX_SCHED_BRANCH} ${FLUX_SCHED_URL} ${FLUX_SCHED_VERSION}
 
     - name: Upload distributions
@@ -98,7 +97,9 @@ jobs:
 
   upload:
     runs-on: ubuntu-latest
-    # This job now needs the entire build matrix to complete successfully
+    environment: flux-sched-py ci
+    permissions:
+      id-token: write
     needs: [build]
     steps:
     - name: Download Artifacts
@@ -125,7 +126,7 @@ jobs:
         TWINE_USERNAME: ${{ secrets.PYPI_USER }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASS }}
       run: |
-        apt-get update && apt-get install -y python3-pip
+        sudo apt-get update && sudo apt-get install -y python3-pip
         python3 -m pip install --upgrade twine
         # TODO: we can eventually support wheels.
         twine upload --skip-existing dist/*.tar.gz
